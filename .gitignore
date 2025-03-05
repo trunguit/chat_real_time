@@ -1,0 +1,22 @@
+# Laravel (backend)
+laravel-backend/vendor/
+laravel-backend/storage/
+laravel-backend/.env
+laravel-backend/.env.*
+laravel-backend/bootstrap/cache/
+laravel-backend/public/storage/
+
+# Vue.js (frontend)
+vue-frontend/node_modules/
+vue-frontend/dist/
+vue-frontend/.env
+vue-frontend/.env.*
+
+# IDE / OS Files
+.idea/
+.vscode/
+.DS_Store
+
+# Log files
+npm-debug.log*
+yarn-error.log*
