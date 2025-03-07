@@ -13,14 +13,17 @@ class MessageController extends Controller
    public function getMessages(Request $request){
         $senderId = $request->friendId;
         $receiverId = Auth::user()->id;
-        $messages = Message::where(function ($query) use ($senderId, $receiverId) {
+        $messages = Message::with('sender')->where(function ($query) use ($senderId, $receiverId) {
                         $query->where('sender_id', $senderId)
                             ->where('receiver_id', $receiverId);
                     })->orWhere(function ($query) use ($senderId, $receiverId) {
                         $query->where('sender_id', $receiverId)
                             ->where('receiver_id', $senderId);
-                    })->orderBy('created_at', 'desc')->get();
-        return response()->json(['messages' => $messages], 200);
+                    })->orderBy('created_at', 'desc')->paginate(10);
+        return response()->json([
+                                   'messages' => $messages->items(), // Danh sách tin nhắn
+                                   'next_page' => $messages->nextPageUrl() ? $messages->currentPage() + 1 : null,
+                              ], 200);
    }
     public function sendMessages(Request $request){
           $message = new Message();

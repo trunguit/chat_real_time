@@ -241,14 +241,14 @@
                         <li class="tyn-appbar-item">
                             <a class="d-inline-flex dropdown-toggle" data-bs-auto-close="outside" data-bs-toggle="dropdown" href="#" data-bs-offset="0,10">
                                 <div class="tyn-media tyn-size-lg tyn-circle">
-                                    <img src="/images/avatar/3.jpg" alt="">
+                                    <img :src="authStore.user.avatar||defaultAvatar" alt="">
                                 </div>
                             </a><!-- .dropdown-toggle -->
                             <div class="dropdown-menu dropdown-menu-end">
                                 <div class="dropdown-gap">
                                     <div class="tyn-media-group">
                                         <div class="tyn-media tyn-size-lg">
-                                            <img src="/images/avatar/3.jpg" alt="">
+                                            <img :src="authStore.user.avatar||defaultAvatar" alt="">
                                         </div>
                                         <div class="tyn-media-col">
                                             <div class="tyn-media-row">
@@ -349,6 +349,7 @@ export default {
     const router = useRouter();  
     const notifications = ref([]);
     const notificationDropdown = ref(null);
+    const defaultAvatar = "/images/avatar/default.png";
     onMounted(() => {
         if (notificationDropdown.value) {
             notificationDropdown.value.addEventListener('shown.bs.dropdown', fetchNotification);

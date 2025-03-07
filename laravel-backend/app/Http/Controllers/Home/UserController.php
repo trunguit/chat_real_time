@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
@@ -195,5 +196,20 @@ class UserController extends Controller
             ];
         });
         return response()->json(['friends' => $friends], 200);
+    }
+
+    public function changeAvatar(Request $request) {
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+        $user = Auth::user();
+        $file = $request->file('avatar');
+        $fileName = 'avatar_' . $user->id . '.' . $file->getClientOriginalExtension();
+        $filePath = $file->storeAs('avatars', $fileName, 'public');
+        $fullPath = config('app.url') . Storage::url($filePath);
+        // Cập nhật avatar cho user
+        $user->update(['avatar' => $fullPath]);
+        
+        return response()->json(['user' => $user], 200);
     }
 }

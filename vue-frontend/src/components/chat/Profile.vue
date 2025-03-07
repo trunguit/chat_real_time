@@ -15,14 +15,12 @@
                                     <div class="tyn-media-group align-items-start">
                                         <div class="tyn-media tyn-media-bordered tyn-size-4xl tyn-profile-avatar">
                                             <i class="fa-solid fa-camera change-avatar" @click="openFileInput"></i>
-                                            <input type="file" name="" ref="fileInput" @change="handleChangeAvatar"
-                                                class="d-none" accept="image/*" id="">
-                                            <img :src="avatarPreview || defaultAvatar" alt="Avatar">
-                                            <!-- <img src="/images/avatar/1.jpg" alt=""> -->
+                                            <input type="file" name="" ref="fileInput" @change="handleChangeAvatar" class="d-none" accept="image/*" id="">
+                                            <img :src="authStore.user.avatar || defaultAvatar" alt="Avatar">
                                         </div>
                                         <div class="tyn-media-col">
                                             <div class="tyn-media-row">
-                                                <h4 class="name">{{ authStore.user.name }} <span class="username">@{{formatUsername(authStore.user.name) }}</span>
+                                                <h4 class="name">{{ user.name }} <span class="username">@{{formatUsername(user.name) }}</span>
                                                 </h4>
                                             </div><!-- .tyn-media-row -->
                                             <div class="tyn-media-row has-dot-sap">
@@ -474,105 +472,91 @@ export default {
     },
     setup() {
 
-        const errors = reactive({});
-        const router = useRouter();
-        const fileInput = ref(null);
-        const authStore = useAuthStore();
-        
-        const openFileInput = async () => {
-            await nextTick(); // Đảm bảo Vue đã render xong
-            if (fileInput.value) {
-                fileInput.value.click(); // ✅ Chỉ gọi khi fileInput đã có giá trị
-            } else {
-                console.error("fileInput chưa được gán giá trị.");
-            }
-        };
+    const errors = reactive({});
+    const router = useRouter();
+    const fileInput = ref(null);
+    const authStore = useAuthStore();
 
-        const handleChangeAvatar = (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                console.log("File đã chọn:", file.name);
-            }
-        };
-        const user = ref({
-            name: '',
-            email: '',
-            phone: '',
-        });
-        const formatUsername = (name) => {
-            if (!name) return '';
-            return name.replace(/\s+/g, '_').toLowerCase();
-        };
-        const handleSubmit = async () => {
-            Object.keys(errors).forEach(key => delete errors[key]);
-            try {
-                const response = await api.post('/api/update-profile', user.value);
-                router.push('/profile');
-            } catch (error) {
-                if (error.response && error.response.status == 422) {
-                    Object.assign(errors, error.response.data.errors);
-                }
-            }
-        };
-        onMounted(async () => {
-            user.value = authStore.user;
-        })
-        return {
-            handleSubmit,
-            errors,
-            user,
-            openFileInput,
-            handleChangeAvatar,
-            authStore,
-            formatUsername
-        };
+    const user = ref({
+        name: '',
+        email: '',
+        phone: '',
+    });
+
+    const defaultAvatar = "/images/avatar/default.png"; 
+
+    const formatUsername = (name) => {
+      if (!name) return '';
+      return name.replace(/\s+/g, '_').toLowerCase();
+    };
+
+    const handleSubmit = async () => {
+      Object.keys(errors).forEach(key => delete errors[key]);
+      try {
+        const response = await api.post('/api/update-profile', user.value);
+        router.push('/profile');
+      } catch (error) {
+        if (error.response && error.response.status == 422) {
+          Object.assign(errors, error.response.data.errors);
+        }
+      }
+    };
+
+    const openFileInput = () => {
+      if (fileInput.value) {
+        fileInput.value.click();
+      } else {
+        console.error("fileInput is not defined yet!");
+      }
+    };
+
+    const handleChangeAvatar = async (event) => {
+      const file = event.target.files[0]; // Lấy file được chọn
+
+      if (!file) return;
+
+      // Kiểm tra loại file và kích thước
+      const allowedTypes = ["image/jpeg", "image/png", "image/gif"];
+      const maxSize = 2 * 1024 * 1024; // 2MB
+
+      if (!allowedTypes.includes(file.type)) {
+        alert("Chỉ chấp nhận file ảnh (JPEG, PNG, GIF).");
+        return;
+      }
+
+      if (file.size > maxSize) {
+        alert("File ảnh không được vượt quá 2MB.");
+        return;
+      }
+
+      // Hiển thị ảnh trước khi upload
+      const avatarPreview = URL.createObjectURL(file);
+
+      // Gọi API để upload ảnh
+      await authStore.uploadAvatar(file);
+
+      // Cập nhật avatar trong store (nếu cần)
+      authStore.user.avatar = avatarPreview;
+    };
+
+    onMounted(() => {
+      user.value = authStore.user;
+      console.log(user.value);
+    });
+
+    return {
+      handleSubmit,
+      errors,
+      user,
+      openFileInput,
+      handleChangeAvatar,
+      authStore,
+      formatUsername,
+      defaultAvatar,
+      fileInput
+    };
     },
-    data() {
-        return {
-            avatarPreview: null, // Hiển thị ảnh preview
-            defaultAvatar: "/images/avatar/1.jpg", // Avatar mặc định
-            userId: 1, // ID của user (có thể lấy từ Vuex hoặc API)
-        };
-    },
-    methods: {
-        openFileInput() {
-            this.$refs.fileInput.click(); // Mở file input khi bấm vào icon
-        },
-        async handleChangeAvatar(event) {
-            const file = event.target.files[0]; // Lấy file được chọn
-
-            if (!file) return;
-
-            // Hiển thị ảnh trước khi upload
-            this.avatarPreview = URL.createObjectURL(file);
-
-            // Gọi API để upload ảnh
-            await this.uploadAvatar(file);
-        },
-        async uploadAvatar(file) {
-            try {
-                const formData = new FormData();
-                formData.append("avatar", file);
-                formData.append("user_id", this.userId); // Truyền ID user nếu cần
-
-                const response = await axios.post("api/change-avatar", formData, {
-                    headers: {
-                        "Content-Type": "multipart/form-data",
-                        Authorization: "Bearer " + localStorage.getItem("token"), // Thay token nếu có
-                    },
-                });
-
-                if (response.data.success) {
-                    console.log("Avatar đã cập nhật:", response.data.avatar_url);
-                    this.avatarPreview = response.data.avatar_url; // Cập nhật ảnh mới từ API
-                } else {
-                    console.error("Lỗi cập nhật avatar:", response.data.message);
-                }
-            } catch (error) {
-                console.error("Lỗi khi upload avatar:", error);
-            }
-        },
-    },
+   
 };
 </script>
 <style scoped>

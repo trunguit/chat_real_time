@@ -23,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/friend-list', [UserController::class, 'getFriendList']);
     Route::get('/message/{friendId}', [MessageController::class, 'getMessages']);
     Route::post('/send-message', [MessageController::class, 'sendMessages']);
+    Route::post('/change-avatar', [UserController::class, 'changeAvatar']);
 });
 
 

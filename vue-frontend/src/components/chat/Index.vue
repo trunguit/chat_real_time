@@ -127,12 +127,12 @@
                                     <li v-for="friend in friends"  @click="selectFriend(friend.id)" :class="{'tyn-aside-item js-toggle-main':true,'active':receiverId == friend.id} ">
                                         <div class="tyn-media-group">
                                             <div class="tyn-media tyn-size-lg">
-                                                <img src="/images/avatar/1.jpg" alt="">
+                                                <img :src="friend.avatar || defaultAvatar" alt="">
                                             </div><!-- .tyn-media -->
                                             <div class="tyn-media-col">
                                                 <div class="tyn-media-row">
                                                     <h6 class="name">{{ friend.name }}</h6>
-                                                    <span class="typing">typing ...</span>
+                                                    <span class="typing"></span>
                                                 </div>
                                                 <div class="tyn-media-row has-dot-sap">
                                                     <p class="content">{{ friend.last_message }}</p>
@@ -1848,35 +1848,38 @@
                             </div>
                         </div><!-- .tyn-chat-search -->
                     </div><!-- .tyn-chat-head -->
-                    <div class="tyn-chat-body js-scroll-to-end" id="tynChatBody">
+                    <div ref="scrollContainer" class="tyn-chat-body js-scroll-to-end" id="tynChatBody" >
                         <div class="tyn-reply" id="tynReply">
-                            <template v-for="(message, index) in formattedMessages" :key="message.id">
+                            <div v-if="isLoading" class="loading-indicator">
+                                Loading...
+                            </div>
+                            <template v-for="(group, index) in formattedMessages" :key="index">
+                               
                                 <!-- Hiển thị thời gian nếu cần -->
-                                <div v-if="message.showTimestamp" class="tyn-reply-separator">
-                                    {{ formatTimestamp(message.created_at) }}
+                                <div v-if="group.showTimestamp" class="tyn-reply-separator">
+                                    {{ formatTimestamp(group.messages[0].created_at) }}
                                 </div>
 
                                 <!-- Tin nhắn của người khác (incoming) -->
-                                <div v-if="message.sender_id !== userId" class="tyn-reply-item incoming">
+                                <div v-if="group.sender_id !== userId" class="tyn-reply-item incoming">
                                     <!-- Hiển thị avatar nếu cần -->
-                                    <div v-if="message.showAvatar" class="tyn-reply-avatar">
-                                    <div class="tyn-media tyn-size-md tyn-circle">
-                                        <!-- <img :src="`images/avatar/${message.sender_id}.jpg`" alt=""> -->
-                                    </div>
+                                    <div v-if="group.showAvatar" class="tyn-reply-avatar">
+                                        <div class="tyn-media tyn-size-md tyn-circle">
+                                            <img :src="group.avatar || defaultAvatar" alt="">
+                                            <!-- <img :src="`images/avatar/${group.sender_id}.jpg`" alt=""> -->
+                                        </div>
                                     </div>
 
                                     <!-- Nhóm tin nhắn -->
                                     <div class="tyn-reply-group">
-                                    <!-- Tin nhắn riêng lẻ -->
-                                    <div class="tyn-reply-bubble">
-                                        <div class="tyn-reply-text">{{ message.content }}</div>
-                                    </div>
-                                    <!-- Thêm tin nhắn tiếp theo nếu cùng nhóm -->
-                                    <template v-if="message.groupWithPrevious && formattedMessages[index + 1]">
-                                        <div class="tyn-reply-bubble">
-                                        <div class="tyn-reply-text">{{ formattedMessages[index + 1].content }}</div>
+                                        <!-- Hiển thị tất cả tin nhắn trong nhóm -->
+                                        <div
+                                            v-for="message in group.messages"
+                                            :key="message.id"
+                                            class="tyn-reply-bubble"
+                                        >
+                                            <div class="tyn-reply-text">{{ message.content }}</div>
                                         </div>
-                                    </template>
                                     </div>
                                 </div>
 
@@ -1884,16 +1887,14 @@
                                 <div v-else class="tyn-reply-item outgoing">
                                     <!-- Nhóm tin nhắn -->
                                     <div class="tyn-reply-group">
-                                    <!-- Tin nhắn riêng lẻ -->
-                                    <div class="tyn-reply-bubble">
-                                        <div class="tyn-reply-text">{{ message.content }}</div>
-                                    </div>
-                                    <!-- Thêm tin nhắn tiếp theo nếu cùng nhóm -->
-                                    <template v-if="message.groupWithPrevious && formattedMessages[index + 1]">
-                                        <div class="tyn-reply-bubble">
-                                        <div class="tyn-reply-text">{{ formattedMessages[index + 1].content }}</div>
+                                        <!-- Hiển thị tất cả tin nhắn trong nhóm -->
+                                        <div
+                                            v-for="message in group.messages"
+                                            :key="message.id"
+                                            class="tyn-reply-bubble"
+                                        >
+                                            <div class="tyn-reply-text">{{ message.content }}</div>
                                         </div>
-                                    </template>
                                     </div>
                                 </div>
                             </template>
@@ -2280,7 +2281,7 @@
     </body>
 </template>
 <script>
-import { reactive, onMounted, ref, computed} from 'vue';
+import { reactive, onMounted, ref, computed, nextTick ,onUnmounted} from 'vue';
 import Echo from '../../plugins/echo';
 import { useAuthStore } from '../../stores/authStore';
 import { useFriendStore } from '../../stores/friendStore';
@@ -2302,14 +2303,43 @@ export default {
         const messages = ref([]);
         const message = ref('');
         const receiverId = ref('');
-        onMounted(() => {
+        const isLoading = ref(false);
+        const hasMore = ref(true);
+        const page = ref(1);
+        let simpleBody = null;
+        const scrollContainer = ref(null);
+        const isAutoScrolling = ref(false);
+        const defaultAvatar = "/images/avatar/default.png"; 
+        onMounted(async () => {
+            
+            await getFriendList();
+           
+            
             Echo.private(`friend-send-message.${userId}`)
                 .listen(".friend.send.message", (data) => {
                     messages.value.unshift(data.message);
-                })
-            getFriendList();
-            
+                });
+                if (scrollContainer.value) {
+                    simpleBody = new SimpleBar(scrollContainer.value);
+                    const scrollElement = simpleBody.getScrollElement();
+                    scrollElement.addEventListener('scroll', handleScroll);
+                }
+
         });
+        
+        onUnmounted(() => {
+            if (scrollContainer.value) {
+                scrollContainer.value.removeEventListener('scroll', handleScroll);
+            }
+        });
+        const handleScroll = () => {
+            if (isAutoScrolling.value) return; 
+
+            const scrollElement = simpleBody.getScrollElement();
+            if (scrollElement.scrollTop === 0) {
+                loadMoreMessages();
+            }
+        };
         const getFriendList = async () => {
             try {
                 await friendStore.getFriendList();
@@ -2324,13 +2354,17 @@ export default {
         }
         const selectFriend = async (friendId) => {
             try {
-                const response = await api.get(`/api/message/${friendId}`);
+                page.value = 1;
+                const response = await api.get(`/api/message/${friendId}`, { params: { page: page.value } });
                 messages.value = response.data.messages;
                 receiverId.value = friendId;
+                await nextTick();
+                scrollToBottom();
             } catch (error) {
                 console.error("Lỗi tìm kiếm liên hệ:", error);
             }
         };
+        
         const formatUsername = (name) => {
             if (!name) return '';
             return name.replace(/\s+/g, '_').toLowerCase();
@@ -2362,30 +2396,56 @@ export default {
         // Kiểm tra xem có nên hiển thị thời gian không
         const formattedMessages = computed(() => {
             if (!messages.value || !Array.isArray(messages.value)) {
-                return []; 
+                return [];
             }
 
-            const result = messages.value.map((message, index) => {
+            const result = [];
+            let currentGroup = null; // Lưu trữ thông tin về nhóm tin nhắn liên tiếp hiện tại
+
+            messages.value.forEach((message, index) => {
                 const prevMessage = messages.value[index - 1];
                 const showTimestamp = shouldShowTimestamp(message, prevMessage);
 
-                const groupWithPrevious =
+                // Kiểm tra xem tin nhắn hiện tại có nên được nhóm với nhóm hiện tại không
+                const shouldGroupWithPrevious =
                     prevMessage &&
                     prevMessage.sender_id === message.sender_id &&
                     !showTimestamp;
 
-                const showAvatar = message.sender_id !== userId && (!prevMessage || prevMessage.sender_id !== message.sender_id);
-
-                return {
-                    ...message,
-                    showTimestamp,
-                    showAvatar,
-                    groupWithPrevious,
-                };
+                // Nếu không nhóm được với nhóm hiện tại, tạo một nhóm mới
+                if (!shouldGroupWithPrevious) {
+                    currentGroup = {
+                        sender_id: message.sender_id,
+                        messages: [message],
+                        avatar : message.sender.avatar,
+                        showTimestamp,
+                        showAvatar: message.sender_id !== userId,
+                    };
+                    result.push(currentGroup);
+                } else {
+                    // Nếu nhóm được, thêm tin nhắn vào nhóm hiện tại
+                    currentGroup.messages.push(message);
+                }
             });
+
             return result;
         });
+        const getGroupMessages = (index) => {
+            const groupMessages = [];
+            let currentIndex = index;
+            groupMessages.push(formattedMessages.value[currentIndex]);
 
+            // Kiểm tra các tin nhắn tiếp theo có cùng nhóm không
+            while (
+                currentIndex + 1 < formattedMessages.value.length &&
+                formattedMessages.value[currentIndex + 1].groupWithPrevious
+            ) {
+                currentIndex++;
+                groupMessages.push(formattedMessages.value[currentIndex]);
+            }
+            console.log(formattedMessages.value);
+            return groupMessages;
+        };
         // Kiểm tra xem có nên hiển thị thời gian không
         const shouldShowTimestamp = (message, prevMessage) => {
             if (!prevMessage) return true; // Tin nhắn đầu tiên
@@ -2419,6 +2479,41 @@ export default {
             }
             
         }
+
+        const loadMoreMessages = async () => {
+            if (isLoading.value || !hasMore.value) return; // Nếu đang tải hoặc không còn tin nhắn, không làm gì
+
+            isLoading.value = true; // Đánh dấu đang tải
+            page.value += 1;
+            try {
+                const response = await api.get(`/api/message/${receiverId.value}`, { params: { page: page.value } });
+                if (response.data.messages.length > 0) {
+                    messages.value.push(...response.data.messages);                  
+                } else {    
+                    hasMore.value = false; // Không còn tin nhắn để tải
+                }
+            } catch (error) {
+                console.error("Lỗi tải thêm tin nhắn:", error);
+            } finally {
+                isLoading.value = false; // Đánh dấu đã tải xong
+            }
+        };
+
+        
+        const scrollToBottom = () => {
+            const container = document.querySelector('.js-scroll-to-end'); 
+            if (container) {
+                if (!simpleBody) {
+                    simpleBody = new SimpleBar(container);
+                    const scrollElement = simpleBody.getScrollElement();
+                    scrollElement.scrollTop = scrollElement.scrollHeight;
+                } else {
+                    const scrollElement = simpleBody.getScrollElement();
+                    scrollElement.scrollTop = scrollElement.scrollHeight;
+                }
+            }
+        };
+
         return {
                 notifications,
                 authStore,
@@ -2438,7 +2533,11 @@ export default {
                 message,
                 sendMessage,
                 selectFriend,
-                receiverId
+                receiverId,
+                getGroupMessages,
+                isLoading,
+                scrollContainer,
+                defaultAvatar
             };
         }
 };
