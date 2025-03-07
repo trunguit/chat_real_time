@@ -112,7 +112,7 @@ export default {
             try {
                 const response = await axios.post('api/authenticate', formData);
                 localStorage.setItem("token", response.data.token);
-                authStore.login();
+                authStore.login(response.data.user);
                 router.push('/profile');
             } catch (error) {
                 if (error.response && error.response.status == 422) {

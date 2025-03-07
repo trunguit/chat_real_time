@@ -31,9 +31,9 @@ class MessageController extends Controller
           $message->receiver_id = $request->receiverId;
           $message->content = $request->message;
           $message->save();
+          $message = Message::with('sender')->where('id', $message->id)->first();
+          broadcast(new FriendSendMessage(Auth::user(), $request->receiverId, $message))->toOthers();
 
-          broadcast(new FriendSendMessage(Auth::user(), $request->receiverId, $message));
-
-          return response()->json(['message' => 'Message sent successfully'], 200);
+          return response()->json(['message' => $message], 200);
      }
 }

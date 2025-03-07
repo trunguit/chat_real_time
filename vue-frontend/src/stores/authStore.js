@@ -1,30 +1,39 @@
-import {defineStore} from 'pinia';
+import { defineStore } from 'pinia';
 import api from '../utils/axios';
+
 export const useAuthStore = defineStore('auth', {
     state: () => ({
-        user:  JSON.parse(localStorage.getItem('user'))||null,
+        user: JSON.parse(localStorage.getItem('user')) || null,
     }),
     actions: {
-        async setUser(user) {
+        async setUser(user = null) {
+            if (user) {
+                this.user = user; // Cập nhật user ngay lập tức
+                localStorage.setItem('user', JSON.stringify(user));
+            }
+
             try {
                 const response = await api.get('/api/get-profile');
                 this.updateUser(response);
             } catch (error) {
                 console.log(error);
             }
-            
         },
-        login(){
-            this.setUser();
+
+        login(userData) {
+            this.setUser(userData); // Truyền dữ liệu user vào setUser
         },
+
         logout() {
             this.user = null;
             localStorage.removeItem('user');
         },
-        updateUser(response){
+
+        updateUser(response) {
             this.user = response.data.user;
             localStorage.setItem('user', JSON.stringify(this.user));
         },
+
         async uploadAvatar(file) {
             try {
                 const formData = new FormData();
@@ -40,7 +49,5 @@ export const useAuthStore = defineStore('auth', {
                 console.error("Lỗi khi upload avatar:", error);
             }
         },
-
-       
-    }
-})
+    },
+});

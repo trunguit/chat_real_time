@@ -11,7 +11,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class FriendSendMessage implements ShouldBroadcastNow
+class FriendSendMessage implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
     public $sender;
@@ -27,10 +27,7 @@ class FriendSendMessage implements ShouldBroadcastNow
 
     public function broadcastOn()
     {
-        return [
-            new PrivateChannel('friend-send-message.' . $this->receiver),
-            new PrivateChannel('friend-send-message.' . $this->sender->id),
-        ] ;
+        return new PrivateChannel('friend-send-message.' . $this->receiver);
     }
 
     public function broadcastAs()

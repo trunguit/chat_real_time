@@ -16,11 +16,11 @@
                                         <div class="tyn-media tyn-media-bordered tyn-size-4xl tyn-profile-avatar">
                                             <i class="fa-solid fa-camera change-avatar" @click="openFileInput"></i>
                                             <input type="file" name="" ref="fileInput" @change="handleChangeAvatar" class="d-none" accept="image/*" id="">
-                                            <img :src="authStore.user.avatar || defaultAvatar" alt="Avatar">
+                                            <img :src="authStore.user?.avatar || defaultAvatar" alt="Avatar">
                                         </div>
                                         <div class="tyn-media-col">
                                             <div class="tyn-media-row">
-                                                <h4 class="name">{{ user.name }} <span class="username">@{{formatUsername(user.name) }}</span>
+                                                <h4 class="name">{{ authStore.user?.name }} <span class="username">@{{formatUsername(authStore.user?.name) }}</span>
                                                 </h4>
                                             </div><!-- .tyn-media-row -->
                                             <div class="tyn-media-row has-dot-sap">
@@ -76,7 +76,7 @@
                                                                         <label class="form-label" for="firstName">Your
                                                                             Name</label>
                                                                         <div class="form-control-wrap">
-                                                                            <input v-model="user.name" type="text"
+                                                                            <input v-model="profile.name" type="text"
                                                                                 class="form-control" id="firstName"
                                                                                 placeholder="Your Name">
                                                                         </div>
@@ -87,7 +87,7 @@
                                                                         <label class="form-label"
                                                                             for="lastName">Phone</label>
                                                                         <div class="form-control-wrap">
-                                                                            <input v-model="user.phone" type="text"
+                                                                            <input v-model="profile.phone" type="text"
                                                                                 class="form-control" id="lastName"
                                                                                 placeholder="Your Name" value="">
                                                                         </div>
@@ -105,7 +105,7 @@
                                                                             <input type="text" class="form-control"
                                                                                 id="primaryEmail" disabled
                                                                                 placeholder="Primary Email"
-                                                                                v-model="user.email">
+                                                                                v-model="profile.email">
                                                                         </div>
                                                                         <div class="tyn-subtext mt-2">You need to have
                                                                             at least one email connected with your
@@ -477,7 +477,7 @@ export default {
     const fileInput = ref(null);
     const authStore = useAuthStore();
 
-    const user = ref({
+    const profile = ref({
         name: '',
         email: '',
         phone: '',
@@ -493,7 +493,7 @@ export default {
     const handleSubmit = async () => {
       Object.keys(errors).forEach(key => delete errors[key]);
       try {
-        const response = await api.post('/api/update-profile', user.value);
+        const response = await api.post('/api/update-profile', profile.value);
         router.push('/profile');
       } catch (error) {
         if (error.response && error.response.status == 422) {
@@ -529,25 +529,18 @@ export default {
         return;
       }
 
-      // Hiển thị ảnh trước khi upload
-      const avatarPreview = URL.createObjectURL(file);
-
-      // Gọi API để upload ảnh
       await authStore.uploadAvatar(file);
 
-      // Cập nhật avatar trong store (nếu cần)
-      authStore.user.avatar = avatarPreview;
     };
 
     onMounted(() => {
-      user.value = authStore.user;
-      console.log(user.value);
+        profile.value = authStore.user;
     });
 
     return {
       handleSubmit,
       errors,
-      user,
+      profile,
       openFileInput,
       handleChangeAvatar,
       authStore,

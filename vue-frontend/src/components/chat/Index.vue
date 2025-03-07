@@ -2281,7 +2281,7 @@
     </body>
 </template>
 <script>
-import { reactive, onMounted, ref, computed, nextTick ,onUnmounted} from 'vue';
+import { reactive, onMounted, ref, computed, nextTick ,onUnmounted, watch} from 'vue';
 import Echo from '../../plugins/echo';
 import { useAuthStore } from '../../stores/authStore';
 import { useFriendStore } from '../../stores/friendStore';
@@ -2293,7 +2293,7 @@ export default {
     },
     setup(props) {
         const authStore = useAuthStore();
-        const userId = authStore.user.id;
+        const userId = authStore.user?.id;
         const friendStore = useFriendStore();
         const notifications = ref([]);
        
@@ -2310,6 +2310,7 @@ export default {
         const scrollContainer = ref(null);
         const isAutoScrolling = ref(false);
         const defaultAvatar = "/images/avatar/default.png"; 
+        
         onMounted(async () => {
             
             await getFriendList();
@@ -2318,12 +2319,12 @@ export default {
             Echo.private(`friend-send-message.${userId}`)
                 .listen(".friend.send.message", (data) => {
                     messages.value.unshift(data.message);
-                });
-                if (scrollContainer.value) {
-                    simpleBody = new SimpleBar(scrollContainer.value);
-                    const scrollElement = simpleBody.getScrollElement();
-                    scrollElement.addEventListener('scroll', handleScroll);
-                }
+            });
+            if (scrollContainer.value) {
+                simpleBody = new SimpleBar(scrollContainer.value);
+                const scrollElement = simpleBody.getScrollElement();
+                scrollElement.addEventListener('scroll', handleScroll);
+            }
 
         });
         
@@ -2400,34 +2401,30 @@ export default {
             }
 
             const result = [];
-            let currentGroup = null; // Lưu trữ thông tin về nhóm tin nhắn liên tiếp hiện tại
-
+            let currentGroup = null;
+            
+            // Duyệt mảng messages từ đầu đến cuối (từ mới đến cũ)
             messages.value.forEach((message, index) => {
                 const prevMessage = messages.value[index - 1];
                 const showTimestamp = shouldShowTimestamp(message, prevMessage);
-
-                // Kiểm tra xem tin nhắn hiện tại có nên được nhóm với nhóm hiện tại không
                 const shouldGroupWithPrevious =
                     prevMessage &&
                     prevMessage.sender_id === message.sender_id &&
                     !showTimestamp;
-
-                // Nếu không nhóm được với nhóm hiện tại, tạo một nhóm mới
                 if (!shouldGroupWithPrevious) {
                     currentGroup = {
                         sender_id: message.sender_id,
                         messages: [message],
-                        avatar : message.sender.avatar,
+                        avatar: message.sender?.avatar || defaultAvatar.value,
                         showTimestamp,
-                        showAvatar: message.sender_id !== userId,
+                        showAvatar: message.sender_id !== userId.value,
                     };
                     result.push(currentGroup);
                 } else {
-                    // Nếu nhóm được, thêm tin nhắn vào nhóm hiện tại
                     currentGroup.messages.push(message);
                 }
             });
-
+            
             return result;
         });
         const getGroupMessages = (index) => {
@@ -2447,33 +2444,24 @@ export default {
             return groupMessages;
         };
         // Kiểm tra xem có nên hiển thị thời gian không
-        const shouldShowTimestamp = (message, prevMessage) => {
-            if (!prevMessage) return true; // Tin nhắn đầu tiên
-            const timeDiff = Math.abs(
-                new Date(message.created_at) - new Date(prevMessage.created_at)
-            );
-            const minutesDiff = timeDiff / (1000 * 60); // Chuyển đổi sang phút
-
-            // Hiển thị thời gian nếu khoảng cách lớn hơn 5 phút
-            if (minutesDiff > 5) return true;
-
-            // Hiển thị thời gian nếu ngày thay đổi
-            const prevDate = new Date(prevMessage.created_at).toDateString();
-            const currentDate = new Date(message.created_at).toDateString();
-            if (prevDate !== currentDate) return true;
-
-            return false;
+        const shouldShowTimestamp = (currentMessage, prevMessage) => {
+            if (!prevMessage) return true;
+            const currentTime = new Date(currentMessage.created_at);
+            const prevTime = new Date(prevMessage.created_at);
+            const timeDiff = Math.abs(currentTime - prevTime) / (1000 * 60); // Tính khoảng cách thời gian (phút)
+            return timeDiff > 5; // Hiển thị timestamp nếu khoảng cách > 5 phút
         };
 
 
         const formatTimestamp = (timestamp) => {
             const date = new Date(timestamp);
-            return date.toLocaleString(); // Định dạng thời gian
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         };
         const sendMessage = async () => {
             try {
-                await api.post('/api/send-message', { message: message.value , receiverId: receiverId.value});
+                const response = await api.post('/api/send-message', { message: message.value , receiverId: receiverId.value});
                 message.value = '';
+                messages.value.unshift(response.data.message);
             } catch (error) {
                 console.error("Lỗi gửi tin nhắn:", error);
             }
@@ -2546,4 +2534,11 @@ export default {
 .tyn-chat-form-input{
     border: none;
 }
+.tyn-reply-group > *:not(:last-child) {
+    margin-top: 0.375rem;
+}
+.tyn-reply-group {
+    flex-direction: column-reverse;
+}
+    
 </style>
